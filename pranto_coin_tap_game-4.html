@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#10182b">
+<title>Pranto Coin — Tap Game</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#10182b;--card:#1b2944;--gold:#ffd45c;--text:#f7f8ff;--muted:#aeb9d1;--green:#4fe0a1}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#263c62 0,#10182b 55%);color:var(--text);font-family:system-ui,-apple-system,sans-serif;min-height:100vh}
+main{max-width:440px;margin:auto;padding:18px 16px 30px;text-align:center}.top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+h1{font-size:25px;margin:14px 0 4px}.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.balance{background:linear-gradient(135deg,#263a5e,#1b2944);border:1px solid #3d5277;border-radius:20px;padding:18px;margin-bottom:18px}
+.balance small{color:var(--muted)}.amount{font-size:36px;font-weight:850;color:var(--gold);margin-top:4px}
+.coin-wrap{display:flex;justify-content:center;align-items:center;height:230px}
+#coin{width:190px;height:190px;border-radius:50%;border:7px solid #ffe89a;background:radial-gradient(circle at 35% 25%,#fff3a8,#ffc52d 50%,#d98700 100%);box-shadow:0 0 0 10px #ffd45c22,0 14px 35px #0006,inset 0 0 0 4px #d88a00;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#7a4500;font-size:66px;cursor:pointer;touch-action:manipulation;user-select:none;transition:transform .08s}
+#coin:active{transform:scale(.94)}#coin span{font-size:15px;font-weight:900;letter-spacing:2px}
+.energy-row{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:8px 2px}
+.track{height:10px;background:#34425c;border-radius:99px;overflow:hidden}.fill{height:100%;width:100%;background:linear-gradient(90deg,#4fe0a1,#d6ff78);transition:width .2s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.tile{background:var(--card);border:1px solid #344665;border-radius:15px;padding:13px 10px}.tile small{display:block;color:var(--muted);font-size:12px}.tile strong{display:block;margin:5px 0 10px;font-size:16px}
+button{border:0;border-radius:11px;padding:11px 12px;font-weight:800;background:var(--gold);color:#392400;width:100%;cursor:pointer}.secondary{background:#314462;color:var(--text);margin-top:10px}.foot{font-size:11px;color:#8e9bb5;margin-top:18px;line-height:1.5}.pop{position:fixed;pointer-events:none;font-weight:900;color:#fff1a8;font-size:24px;animation:up .65s ease-out forwards}@keyframes up{to{transform:translateY(-75px);opacity:0}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><span>🐹 PRANTO COIN</span><span id="status">Demo Game</span></div>
+  <h1>Tap করে কয়েন জিতো!</h1>
+  <div class="sub">একটি মজার ভার্চুয়াল কয়েন গেম</div>
+  <section class="balance"><small>তোমার মোট কয়েন</small><div class="amount" id="coins">0</div></section>
+  <div class="coin-wrap"><button id="coin" aria-label="Tap coin">🪙<span>TAP!</span></button></div>
+  <div class="energy-row"><span>⚡ Energy</span><span id="energyText">100 / 100</span></div>
+  <div class="track"><div class="fill" id="energyFill"></div></div>
+  <div class="grid">
+    <div class="tile"><small>প্রতি ট্যাপে</small><strong id="perTap">+1 coin</strong><button id="upgrade">Upgrade · 50 🪙</button></div>
+    <div class="tile"><small>আজকের ট্যাপ</small><strong id="taps">0</strong><button class="secondary" id="daily">Daily Bonus · +25</button></div>
+  </div>
+  <button class="secondary" id="share">বন্ধুকে Invite করো</button>
+  <div class="foot">এটি একটি ডেমো গেম। কয়েনের বাস্তব আর্থিক মূল্য নেই, টাকা তোলা যায় না। অগ্রগতি এই ব্রাউজারেই সংরক্ষিত হয়।</div>
+</main>
+<script>
+(() => {
+ const tg = window.Telegram && window.Telegram.WebApp;
+ if(tg){tg.ready();tg.expand();document.getElementById('status').textContent='Telegram Mini App';}
+ const KEY='prantoCoinDemoV1';
+ let state={coins:0,energy:100,taps:0,level:1,lastEnergy:Date.now(),bonusDate:''};
+ try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved)state={...state,...saved};}catch(e){}
+ const $=id=>document.getElementById(id);
+ function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+ function render(){
+   $('coins').textContent=Math.floor(state.coins).toLocaleString();
+   $('energyText').textContent=Math.floor(state.energy)+' / 100';
+   $('energyFill').style.width=Math.max(0,state.energy)+'%';
+   $('taps').textContent=state.taps.toLocaleString();
+   $('perTap').textContent='+'+state.level+' coin';
+   $('upgrade').textContent='Upgrade · '+(state.level*50)+' 🪙';
+   $('upgrade').disabled=state.coins<state.level*50;
+   $('upgrade').style.opacity=state.coins<state.level*50?'.55':'1';
+   const today=new Date().toISOString().slice(0,10);
+   $('daily').disabled=state.bonusDate===today;
+   $('daily').textContent=state.bonusDate===today?'Bonus Collected ✓':'Daily Bonus · +25';
+   $('daily').style.opacity=state.bonusDate===today?'.55':'1';
+ }
+ function pop(x,y,txt){const el=document.createElement('div');el.className='pop';el.textContent=txt;el.style.left=(x-15)+'px';el.style.top=(y-10)+'px';document.body.appendChild(el);setTimeout(()=>el.remove(),700);}
+ $('coin').addEventListener('click',e=>{
+   if(state.energy<1){$('status').textContent='Energy recharge হচ্ছে';return;}
+   state.coins+=state.level;state.energy-=1;state.taps++;save();render();
+   const t=e.changedTouches?e.changedTouches[0]:e;
+   pop(t.clientX,t.clientY,'+'+state.level);
+   if(tg && tg.HapticFeedback)tg.HapticFeedback.impactOccurred('light');
+ });
+ $('upgrade').addEventListener('click',()=>{const cost=state.level*50;if(state.coins>=cost){state.coins-=cost;state.level++;save();render();}});
+ $('daily').addEventListener('click',()=>{const today=new Date().toISOString().slice(0,10);if(state.bonusDate!==today){state.coins+=25;state.bonusDate=today;save();render();}});
+ $('share').addEventListener('click',()=>{
+   const text='আমার Pranto Coin Tap Game খেলো! 🐹🪙';
+   if(tg && tg.openTelegramLink){tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(location.href)+'&text='+encodeURIComponent(text));}
+   else if(navigator.share){navigator.share({title:'Pranto Coin',text,url:location.href}).catch(()=>{});}
+   else{alert('গেমের লিংক প্রকাশ করার পর সেটি বন্ধুদের পাঠাতে পারবে।');}
+ });
+ setInterval(()=>{if(state.energy<100){state.energy=Math.min(100,state.energy+1);save();render();}},3000);
+ render();
+})();
+</script>
+</body>
+</html>
