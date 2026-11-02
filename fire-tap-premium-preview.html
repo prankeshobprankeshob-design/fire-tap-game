@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#090909">
+<title>FIRE TAP — Tap to Play</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#090909;--panel:#171717;--panel2:#202020;--gold:#f6c453;--gold2:#ffe7a0;--muted:#aaa;--green:#8be0a8}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#30230b 0,#111 42%,#080808 100%);color:#fff;font-family:Arial,system-ui,sans-serif}
+main{max-width:460px;margin:auto;padding:20px 16px 30px;text-align:center}
+.top{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#c9c1ad;letter-spacing:1px}
+.brand{font-weight:900;color:var(--gold);font-size:15px}
+.pill{border:1px solid #51401e;border-radius:30px;padding:7px 10px}
+h1{font-size:29px;letter-spacing:2px;margin:24px 0 4px;color:var(--gold2)}
+.sub{font-size:13px;color:#bdb6a7;margin-bottom:22px}
+.balance{background:linear-gradient(145deg,#292216,#171717);border:1px solid #69501e;border-radius:20px;padding:18px;box-shadow:0 12px 30px #0008}
+.balance small,.label{color:#bdb6a7;font-size:12px;letter-spacing:1px;text-transform:uppercase}
+.amount{font-size:39px;font-weight:900;color:var(--gold);margin-top:5px;font-variant-numeric:tabular-nums}
+.coin-area{height:250px;display:flex;align-items:center;justify-content:center}
+#coin{width:190px;height:190px;border-radius:50%;border:7px solid #ffe6a0;background:radial-gradient(circle at 32% 25%,#fff4c4,#f7c64e 48%,#a96809 100%);box-shadow:0 0 0 9px #f6c45318,0 18px 40px #000b,inset 0 0 0 5px #c18418;color:#563500;font-size:64px;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;user-select:none;transition:transform .08s}
+#coin span{font-size:14px;letter-spacing:3px;margin-top:3px}
+#coin:active{transform:scale(.93)}
+.energy-line{display:flex;justify-content:space-between;font-size:12px;color:#d0c8b7;margin:0 2px 8px}
+.track{height:10px;border-radius:20px;background:#39352c;overflow:hidden}
+.fill{height:100%;width:100%;background:linear-gradient(90deg,#9acb79,#f6c453);transition:width .2s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:18px}
+.tile{background:linear-gradient(145deg,#202020,#141414);border:1px solid #3d3422;border-radius:16px;padding:14px 10px}
+.tile strong{display:block;font-size:17px;margin:7px 0 12px;color:#fff}
+button.action{width:100%;border:0;border-radius:11px;padding:12px 9px;background:linear-gradient(135deg,#ffe39a,#e4a92e);color:#2b1b00;font-weight:900;cursor:pointer}
+button.action:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{margin-top:12px;background:#2a251b;color:#f8d77d;border:1px solid #69501e}
+.note{font-size:11px;color:#8f887a;line-height:1.5;margin-top:18px}
+.pop{position:fixed;pointer-events:none;font-weight:900;color:#ffe7a0;font-size:24px;animation:rise .65s ease-out forwards;text-shadow:0 2px 8px #000}
+@keyframes rise{to{transform:translateY(-75px);opacity:0}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><span class="brand">🔥 FIRE TAP</span><span class="pill" id="status">DEMO MODE</span></div>
+  <h1>TAP TO EARN</h1>
+  <div class="sub">Tap the coin. Build your score. Have fun.</div>
+  <section class="balance"><small class="label">YOUR COINS</small><div class="amount" id="coins">0</div></section>
+  <div class="coin-area"><button id="coin" aria-label="Tap the coin">🪙<span>TAP!</span></button></div>
+  <div class="energy-line"><span>⚡ ENERGY</span><span id="energyText">100 / 100</span></div>
+  <div class="track"><div class="fill" id="energyFill"></div></div>
+  <div class="grid">
+    <section class="tile"><small class="label">COINS PER TAP</small><strong id="perTap">+1</strong><button class="action" id="upgrade">UPGRADE · 50</button></section>
+    <section class="tile"><small class="label">TOTAL TAPS</small><strong id="taps">0</strong><button class="action" id="daily">DAILY BONUS · +25</button></section>
+  </div>
+  <button class="action secondary" id="share">INVITE A FRIEND</button>
+  <p class="note">Demo game only. Coins have no cash value and cannot be withdrawn. Progress is saved on this device. Do not pay anyone to receive demo coins.</p>
+</main>
+<script>
+(() => {
+ const tg=window.Telegram&&window.Telegram.WebApp;
+ if(tg){tg.ready();tg.expand();document.getElementById('status').textContent='TELEGRAM MINI APP';}
+ const KEY='fireTapDemoV1',OLD='prantoCoinDemoV1';
+ let state={coins:0,energy:100,taps:0,level:1,lastEnergy:Date.now(),bonusDate:''};
+ try{
+   let saved=JSON.parse(localStorage.getItem(KEY)||'null');
+   if(!saved){saved=JSON.parse(localStorage.getItem(OLD)||'null');if(saved){state={...state,...saved};localStorage.setItem(KEY,JSON.stringify(state));}}
+   else state={...state,...saved};
+ }catch(e){}
+ const $=id=>document.getElementById(id);
+ function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+ function render(){
+   $('coins').textContent=Math.floor(state.coins).toLocaleString();
+   $('energyText').textContent=Math.floor(state.energy)+' / 100';
+   $('energyFill').style.width=Math.max(0,state.energy)+'%';
+   $('taps').textContent=state.taps.toLocaleString();
+   $('perTap').textContent='+'+state.level;
+   const cost=state.level*50;
+   $('upgrade').textContent='UPGRADE · '+cost;
+   $('upgrade').disabled=state.coins<cost;
+   const today=new Date().toLocaleDateString('en-CA');
+   $('daily').disabled=state.bonusDate===today;
+   $('daily').textContent=state.bonusDate===today?'BONUS CLAIMED ✓':'DAILY BONUS · +25';
+ }
+ function pop(x,y,txt){const el=document.createElement('div');el.className='pop';el.textContent=txt;el.style.left=(x-15)+'px';el.style.top=(y-10)+'px';document.body.appendChild(el);setTimeout(()=>el.remove(),700);}
+ $('coin').addEventListener('click',e=>{
+   if(state.energy<1){$('status').textContent='RECHARGING';return;}
+   state.coins+=state.level;state.energy-=1;state.taps++;save();render();
+   pop(e.clientX,e.clientY,'+'+state.level);
+   if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred('light');
+ });
+ $('upgrade').addEventListener('click',()=>{const cost=state.level*50;if(state.coins>=cost){state.coins-=cost;state.level++;save();render();}});
+ $('daily').addEventListener('click',()=>{const today=new Date().toLocaleDateString('en-CA');if(state.bonusDate!==today){state.coins+=25;state.bonusDate=today;save();render();}});
+ $('share').addEventListener('click',()=>{
+   const text='Play FIRE TAP with me!';
+   const url='https://t.me/share/url?url='+encodeURIComponent(location.href)+'&text='+encodeURIComponent(text);
+   if(tg&&tg.openTelegramLink)tg.openTelegramLink(url);
+   else if(navigator.share)navigator.share({title:'FIRE TAP',text,url:location.href}).catch(()=>{});
+   else alert('Copy and share your game link with friends.');
+ });
+ setInterval(()=>{if(state.energy<100){state.energy=Math.min(100,state.energy+1);save();render();}},3000);
+ render();
+})();
+</script>
+</body>
+</html>
