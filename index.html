@@ -233,107 +233,125 @@ $('refreshPrice').onclick=()=>{
  $('tradeMessage').textContent='Demo market price updated.';
 };
 
-// 2D SHOOTER
-const arena=$('arena'),player=$('player');
-let running=false,health=3,kills=0,playerX=50;
-let enemies=[],bullets=[],spawnTimer=null,gameTimer=null;
+// 3D BATTLE GAME
+const arena=$('arena');
+let running=false,health=3,kills=0,playerX=0;
+let scene,camera,renderer,hero,enemies=[],shots=[];
+let spawnTimer=null,gameTimer=null;
 
-function updatePlayer(){player.style.left=playerX+'%';}
+arena.innerHTML='';
+arena.style.height='290px';
+
 function updateStats(){
  $('health').textContent=health;
  $('kills').textContent=kills;
 }
 function clearGame(){
- enemies.forEach(e=>e.el.remove());
- bullets.forEach(b=>b.el.remove());
- enemies=[];bullets=[];
+ enemies.forEach(e=>scene.remove(e));
+ shots.forEach(b=>scene.remove(b));
+ enemies=[];shots=[];
 }
-function stopGame(message){
- running=false;
- clearInterval(spawnTimer);
- clearInterval(gameTimer);
- $('start').textContent='PLAY AGAIN';
- $('gameMessage').textContent=message;
+function makeBox(w,h,d,color,x,y,z){
+ const m=new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({color})
+ );
+ m.position.set(x,y,z);
+ scene.add(m);
+ return m;
+}
+function init3D(){
+ if(renderer)return;
+ const script=document.createElement('script');
+ script.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+ script.onload=()=>{
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x9bc7e8);
+  camera=new THREE.PerspectiveCamera(60,arena.clientWidth/290,.1,100);
+  camera.position.set(0,9,13);
+  camera.lookAt(0,0,0);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(arena.clientWidth,290);
+  arena.appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x445566,2));
+  const light=new THREE.DirectionalLight(0xffffff,2);
+  light.position.set(4,10,5);scene.add(light);
+  makeBox(18,.3,28,0x557744,0,0,-3);
+  for(let i=0;i<18;i++){
+   makeBox(1,1.5,1,0x667755,
+    (Math.random()-.5)*15,.8,-12+Math.random()*20);
+  }
+  hero=makeBox(1,1.8,1,0x2255ff,0,1,5);
+  makeBox(.5,.5,.5,0xffcc99,0,2.1,5);
+  animate();
+ };
+ document.head.appendChild(script);
+}
+function animate(){
+ requestAnimationFrame(animate);
+ if(!renderer)return;
+ shots.forEach(b=>b.position.z-=.35);
+ enemies.forEach(e=>e.position.z+=.025);
+ for(let i=enemies.length-1;i>=0;i--){
+  let e=enemies[i];
+  let hit=shots.findIndex(b=>
+   Math.abs(b.position.x-e.position.x)<.9 &&
+   Math.abs(b.position.z-e.position.z)<1
+  );
+  if(hit>=0){
+   scene.remove(shots[hit]);shots.splice(hit,1);
+   scene.remove(e);enemies.splice(i,1);
+   kills++;state.coins+=10;save();render();updateStats();
+  }else if(e.position.z>4){
+   scene.remove(e);enemies.splice(i,1);
+   health--;updateStats();
+   if(health<=0)stopGame('Game Over! Demo coins earned: '+kills*10);
+  }
+ }
+ shots=shots.filter(b=>{
+  if(b.position.z< -15){scene.remove(b);return false;}
+  return true;
+ });
+ renderer.render(scene,camera);
 }
 function spawnEnemy(){
  if(!running)return;
- const el=document.createElement('div');
- el.className='enemy';el.textContent='👾';
- const x=8+Math.random()*84;
- el.style.left=x+'%';arena.appendChild(el);
- enemies.push({el,x,y:0});
+ enemies.push(makeBox(1,1.8,1,0xdd3333,
+  (Math.random()-.5)*12,1,-12));
 }
 function shoot(){
- if(!running){
-  $('gameMessage').textContent='Start the game first!';
-  return;
- }
- const el=document.createElement('div');
- el.className='bullet';
- el.style.left='calc('+playerX+'% - 2px)';
- el.style.bottom='50px';
- arena.appendChild(el);
- bullets.push({el,x:playerX,y:arena.clientHeight-50});
+ if(!running)return;
+ shots.push(makeBox(.25,.25,.7,0xffff00,playerX,1.5,4));
 }
-function tick(){
- const h=arena.clientHeight;
-
- bullets.forEach(b=>{
-  b.y-=12;
-  b.el.style.bottom=(h-b.y)+'px';
- });
- bullets=bullets.filter(b=>{
-  if(b.y<0){b.el.remove();return false;}
-  return true;
- });
-
- enemies.forEach(e=>{
-  e.y+=2;
-  e.el.style.top=e.y+'px';
- });
-
- for(let i=enemies.length-1;i>=0;i--){
-  const e=enemies[i];
-  const hit=bullets.findIndex(b=>
-   Math.abs(b.x-e.x)<10 && b.y<e.y+35 && b.y>e.y-10
-  );
-
-  if(hit>=0){
-   bullets[hit].el.remove();bullets.splice(hit,1);
-   e.el.remove();enemies.splice(i,1);
-   kills++;state.coins+=10;
-   save();render();updateStats();
-  }else if(e.y>h-55){
-   e.el.remove();enemies.splice(i,1);
-   health--;updateStats();
-   if(health<=0)stopGame('Game over! You earned '+(kills*10)+' demo coins.');
-  }
- }
+function stopGame(msg){
+ running=false;
+ clearInterval(spawnTimer);clearInterval(gameTimer);
+ $('start').textContent='PLAY AGAIN';
+ $('gameMessage').textContent=msg;
 }
 function startGame(){
- clearInterval(spawnTimer);
- clearInterval(gameTimer);
- clearGame();
- running=true;health=3;kills=0;playerX=50;
- updatePlayer();updateStats();
+ init3D();
+ clearInterval(spawnTimer);clearInterval(gameTimer);
+ clearGame();running=true;health=3;kills=0;playerX=0;
+ if(hero)hero.position.x=0;
+ updateStats();
  $('start').textContent='RESTART GAME';
- $('gameMessage').textContent='Shoot the falling targets!';
+ $('gameMessage').textContent='Defeat the enemy bots!';
  spawnEnemy();
- spawnTimer=setInterval(spawnEnemy,1350);
- gameTimer=setInterval(tick,35);
+ spawnTimer=setInterval(spawnEnemy,1500);
 }
 $('start').onclick=startGame;
 $('left').onclick=()=>{
- playerX=Math.max(8,playerX-12);updatePlayer();
+ playerX=Math.max(-7,playerX-1);
+ if(hero)hero.position.x=playerX;
 };
 $('right').onclick=()=>{
- playerX=Math.min(92,playerX+12);updatePlayer();
+ playerX=Math.min(7,playerX+1);
+ if(hero)hero.position.x=playerX;
 };
 $('fire').onclick=shoot;
-
-updatePlayer();
+init3D();
 updateStats();
-render();
 save();
 })();
 </script>
