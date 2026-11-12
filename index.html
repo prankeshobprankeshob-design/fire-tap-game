@@ -1,1 +1,342 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#10182b">
+<title>FIRE TAP</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10182b;color:white;font-family:Arial,sans-serif;text-align:center}
+main{max-width:460px;margin:auto;padding:16px}
+h1{color:#ffd45c}
+.card{background:#1b2944;padding:16px;border-radius:16px;margin:12px 0;border:1px solid #344665}
+.balance{font-size:35px;color:#ffd45c;font-weight:bold}
+small,.hint{color:#b9c5dc}
+button{border:0;border-radius:11px;padding:12px;background:#ffd45c;color:#392400;font-weight:bold;width:100%;margin:5px 0}
+button:disabled{opacity:.5}
+.secondary{background:#314462;color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.coin{font-size:70px;width:175px;height:175px;border-radius:50%;background:radial-gradient(#fff3a8,#ffc52d,#d98700);border:7px solid #ffe89a;margin:15px auto;color:#754000;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.coin small{font-size:14px;color:#754000}
+.arena{height:290px;background:linear-gradient(#10182b,#263c62);border:2px solid #52698d;border-radius:14px;position:relative;overflow:hidden}
+.player{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:35px}
+.enemy{position:absolute;top:0;font-size:27px;transform:translateX(-50%)}
+.bullet{position:absolute;width:5px;height:14px;background:#ffe36a;border-radius:5px;box-shadow:0 0 8px #ffe36a}
+input{width:100%;padding:12px;border-radius:9px;border:1px solid #52698d;background:#10182b;color:white;font-size:16px;margin:7px 0}
+.social a{display:block;text-decoration:none;color:white;background:#314462;border-radius:10px;padding:14px;margin:8px 0;font-weight:bold}
+.stat{font-size:14px;color:#b9c5dc;line-height:1.8}
+</style>
+</head>
+<body>
+<main>
+<h1>🔥 FIRE TAP</h1>
+<p class="hint">Tap, Play and Trade Demo Coins!</p>
+
+<div class="card">
+<small>Your Coin Balance</small>
+<div class="balance" id="coins">0</div>
+</div>
+
+<div class="coin" id="coin">🪙<small>TAP!</small></div>
+<p>⚡ Energy: <b id="energy">1000</b> / 1000</p>
+
+<div class="grid">
+<div class="card">
+<small>Coins per tap</small>
+<h3 id="level">1</h3>
+<button id="upgrade">UPGRADE · 50</button>
+</div>
+<div class="card">
+<small>Daily Bonus</small>
+<h3>+25 Coins</h3>
+<button id="daily">COLLECT BONUS</button>
+</div>
+</div>
+<button class="secondary" id="share">INVITE FRIENDS</button>
+
+<div class="card">
+<h2>🎯 FIRE TAP SHOOTER</h2>
+<p class="stat">Health: <b id="health">3</b> | Kills: <b id="kills">0</b></p>
+<div class="arena" id="arena">
+<div class="player" id="player">🚀</div>
+</div>
+<div class="grid">
+<button id="left">⬅ LEFT</button>
+<button id="fire">🔥 FIRE</button>
+</div>
+<button id="right">RIGHT ➡</button>
+<button id="start">START GAME</button>
+<p id="gameMessage" class="hint">Press START GAME to play.</p>
+</div>
+
+<div class="card">
+<h2>📈 FIRE TAP TRADING</h2>
+<p class="stat">Demo Market Price: <b id="price">10.00</b> Coins / FIRE</p>
+<p class="stat">Demo Cash: <b id="cash">1000</b></p>
+<p class="stat">FIRE Tokens: <b id="tokens">0</b></p>
+<p class="stat">Portfolio Value: <b id="portfolio">0</b> Coins</p>
+<p class="stat">Demo Profit / Loss: <b id="profit">0</b> Coins</p>
+<input id="tradeAmount" type="number" min="1" step="1" value="1" placeholder="Token amount">
+<div class="grid">
+<button id="buy">BUY FIRE</button>
+<button id="sell">SELL FIRE</button>
+</div>
+<button class="secondary" id="refreshPrice">↻ UPDATE MARKET PRICE</button>
+<p class="hint" id="tradeMessage">Demo trading only. No real money.</p>
+</div>
+
+<div class="card social">
+<h2>Follow FIRE TAP</h2>
+<a href="https://youtube.com/@firetapgame?si=qFSZY94avpBVDCW" target="_blank" rel="noopener">▶ VISIT YOUTUBE</a>
+<a href="https://www.instagram.com/firetabbot?exln=MWkxaWNuYm1uc3k3Yw==" target="_blank" rel="noopener">📸 VISIT INSTAGRAM</a>
+</div>
+
+<p class="hint">Demo game only. Coins and tokens have no real-world cash value and cannot be withdrawn.</p>
+</main>
+
+<script>
+(()=>{
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
+
+const $=id=>document.getElementById(id);
+const KEY='prantoCoinDemoV1';
+
+let state={
+ coins:0,energy:1000,level:1,taps:0,bonusDate:'',
+ cash:1000,tokens:0,marketPrice:10,tradeCost:0
+};
+
+try{
+ const old=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(old)state={...state,...old};
+}catch(e){}
+
+state.energy=Math.min(1000,Math.max(0,state.energy||0));
+state.cash=Number(state.cash??1000);
+state.tokens=Number(state.tokens||0);
+state.marketPrice=Number(state.marketPrice||10);
+state.tradeCost=Number(state.tradeCost||0);
+
+function save(){
+ try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+}
+
+function render(){
+ $('coins').textContent=Math.floor(state.coins).toLocaleString();
+ $('energy').textContent=Math.floor(state.energy);
+ $('level').textContent=state.level;
+ $('upgrade').textContent='UPGRADE · '+(state.level*50);
+ $('upgrade').disabled=state.coins<state.level*50;
+
+ const today=new Date().toISOString().slice(0,10);
+ $('daily').disabled=state.bonusDate===today;
+ $('daily').textContent=state.bonusDate===today?'BONUS COLLECTED ✓':'COLLECT BONUS';
+
+ $('price').textContent=state.marketPrice.toFixed(2);
+ $('cash').textContent=state.cash.toFixed(2);
+ $('tokens').textContent=state.tokens.toFixed(2);
+
+ const value=state.tokens*state.marketPrice;
+ $('portfolio').textContent=value.toFixed(2);
+ $('profit').textContent=(value-state.tradeCost).toFixed(2);
+}
+
+$('coin').onclick=()=>{
+ if(state.energy<1)return;
+ state.coins+=state.level;
+ state.energy--;
+ state.taps++;
+ save();render();
+};
+
+$('upgrade').onclick=()=>{
+ const cost=state.level*50;
+ if(state.coins>=cost){
+  state.coins-=cost;
+  state.level++;
+  save();render();
+ }
+};
+
+$('daily').onclick=()=>{
+ const today=new Date().toISOString().slice(0,10);
+ if(state.bonusDate===today)return;
+ state.coins+=25;
+ state.bonusDate=today;
+ save();render();
+};
+
+$('share').onclick=()=>{
+ const url='https://t.me/share/url?url='+
+ encodeURIComponent(location.href)+'&text='+
+ encodeURIComponent('Play FIRE TAP with me!');
+ if(tg?.openTelegramLink)tg.openTelegramLink(url);
+ else window.open(url,'_blank');
+};
+
+// DEMO TRADING
+function tradeAmount(){
+ const n=Number($('tradeAmount').value);
+ return Number.isFinite(n)?Math.floor(n):0;
+}
+
+$('buy').onclick=()=>{
+ const amount=tradeAmount();
+ const cost=amount*state.marketPrice;
+
+ if(amount<1){
+  $('tradeMessage').textContent='Enter a valid token amount.';
+  return;
+ }
+ if(cost>state.cash){
+  $('tradeMessage').textContent='Not enough demo cash!';
+  return;
+ }
+
+ state.cash-=cost;
+ state.tokens+=amount;
+ state.tradeCost+=cost;
+ save();render();
+ $('tradeMessage').textContent='Bought '+amount+' FIRE demo tokens.';
+};
+
+$('sell').onclick=()=>{
+ const amount=tradeAmount();
+
+ if(amount<1){
+  $('tradeMessage').textContent='Enter a valid token amount.';
+  return;
+ }
+ if(amount>state.tokens){
+  $('tradeMessage').textContent='Not enough FIRE tokens!';
+  return;
+ }
+
+ const proceeds=amount*state.marketPrice;
+ const averageCost=state.tokens>0?state.tradeCost/state.tokens:0;
+
+ state.tokens-=amount;
+ state.cash+=proceeds;
+ state.tradeCost=Math.max(0,state.tradeCost-(averageCost*amount));
+
+ save();render();
+ $('tradeMessage').textContent='Sold '+amount+' FIRE demo tokens.';
+};
+
+$('refreshPrice').onclick=()=>{
+ state.marketPrice=Math.max(1,state.marketPrice*(1+(Math.random()-.5)*.12));
+ save();render();
+ $('tradeMessage').textContent='Demo market price updated.';
+};
+
+// 2D SHOOTER
+const arena=$('arena'),player=$('player');
+let running=false,health=3,kills=0,playerX=50;
+let enemies=[],bullets=[],spawnTimer=null,gameTimer=null;
+
+function updatePlayer(){player.style.left=playerX+'%';}
+function updateStats(){
+ $('health').textContent=health;
+ $('kills').textContent=kills;
+}
+function clearGame(){
+ enemies.forEach(e=>e.el.remove());
+ bullets.forEach(b=>b.el.remove());
+ enemies=[];bullets=[];
+}
+function stopGame(message){
+ running=false;
+ clearInterval(spawnTimer);
+ clearInterval(gameTimer);
+ $('start').textContent='PLAY AGAIN';
+ $('gameMessage').textContent=message;
+}
+function spawnEnemy(){
+ if(!running)return;
+ const el=document.createElement('div');
+ el.className='enemy';el.textContent='👾';
+ const x=8+Math.random()*84;
+ el.style.left=x+'%';arena.appendChild(el);
+ enemies.push({el,x,y:0});
+}
+function shoot(){
+ if(!running){
+  $('gameMessage').textContent='Start the game first!';
+  return;
+ }
+ const el=document.createElement('div');
+ el.className='bullet';
+ el.style.left='calc('+playerX+'% - 2px)';
+ el.style.bottom='50px';
+ arena.appendChild(el);
+ bullets.push({el,x:playerX,y:arena.clientHeight-50});
+}
+function tick(){
+ const h=arena.clientHeight;
+
+ bullets.forEach(b=>{
+  b.y-=12;
+  b.el.style.bottom=(h-b.y)+'px';
+ });
+ bullets=bullets.filter(b=>{
+  if(b.y<0){b.el.remove();return false;}
+  return true;
+ });
+
+ enemies.forEach(e=>{
+  e.y+=2;
+  e.el.style.top=e.y+'px';
+ });
+
+ for(let i=enemies.length-1;i>=0;i--){
+  const e=enemies[i];
+  const hit=bullets.findIndex(b=>
+   Math.abs(b.x-e.x)<10 && b.y<e.y+35 && b.y>e.y-10
+  );
+
+  if(hit>=0){
+   bullets[hit].el.remove();bullets.splice(hit,1);
+   e.el.remove();enemies.splice(i,1);
+   kills++;state.coins+=10;
+   save();render();updateStats();
+  }else if(e.y>h-55){
+   e.el.remove();enemies.splice(i,1);
+   health--;updateStats();
+   if(health<=0)stopGame('Game over! You earned '+(kills*10)+' demo coins.');
+  }
+ }
+}
+function startGame(){
+ clearInterval(spawnTimer);
+ clearInterval(gameTimer);
+ clearGame();
+ running=true;health=3;kills=0;playerX=50;
+ updatePlayer();updateStats();
+ $('start').textContent='RESTART GAME';
+ $('gameMessage').textContent='Shoot the falling targets!';
+ spawnEnemy();
+ spawnTimer=setInterval(spawnEnemy,1350);
+ gameTimer=setInterval(tick,35);
+}
+$('start').onclick=startGame;
+$('left').onclick=()=>{
+ playerX=Math.max(8,playerX-12);updatePlayer();
+};
+$('right').onclick=()=>{
+ playerX=Math.min(92,playerX+12);updatePlayer();
+};
+$('fire').onclick=shoot;
+
+updatePlayer();
+updateStats();
+render();
+save();
+})();
+</script>
+</body>
+  </html>
+  
